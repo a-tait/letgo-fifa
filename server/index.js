@@ -19,6 +19,7 @@ app.use('/api/news',      require('./routes/news'));
 app.use('/api/sentiment', require('./routes/sentiment'));
 app.use('/api/sim',       require('./routes/sim'));
 app.use('/api/bracket',   require('./routes/bracket'));
+app.use('/api/agent',     require('./routes/agent'));
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/me',        require('./routes/me'));
 
