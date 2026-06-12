@@ -101,6 +101,25 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(W(), H(), false);
 
+    // ── Player card hover overlay ──────────────────────────────────────
+    const card = document.createElement('div');
+    card.id = 'sim-player-card';
+    card.style.cssText = `
+      position:absolute;pointer-events:none;z-index:20;
+      background:#0c1222;border:1px solid #22304f;border-radius:14px;
+      padding:14px 16px;min-width:190px;
+      box-shadow:0 12px 40px rgba(0,0,0,.7);
+      opacity:0;transition:opacity .15s;
+      font-family:"Outfit",system-ui,sans-serif;color:#eaf0ff;
+    `;
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(card);
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(-9999, -9999);
+    // Map from mesh uuid → { playerData, side }
+    const meshPlayerMap = new Map();
+
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const key = new THREE.DirectionalLight(0xffffff, 1.1);
     key.position.set(20, 60, 30); scene.add(key);
@@ -153,16 +172,21 @@
     goal(PL / 2); goal(-PL / 2);
 
     // Pixel player = chunky low-poly box "minifig"
-    function makePlayer(color) {
+    function makePlayer(color, playerData, side) {
       const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 1.0),
-        new THREE.MeshStandardMaterial({ color }));
+      const bodyMat = new THREE.MeshStandardMaterial({ color });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 1.0), bodyMat);
       body.position.y = 1.6;
       const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0),
         new THREE.MeshStandardMaterial({ color: 0xf1c27d }));
       head.position.y = 3.1;
+      // Number label plane on shirt
       g.add(body, head);
       scene.add(g);
+      // Register both body and head meshes for raycasting
+      meshPlayerMap.set(body.uuid, { playerData, side, bodyMat });
+      meshPlayerMap.set(head.uuid, { playerData, side, bodyMat });
+      g._bodyMat = bodyMat;
       return g;
     }
 
@@ -170,6 +194,9 @@
     const awayColor = parseInt((away.primary || "#ffffff").replace("#", "0x"));
     // ensure contrast vs pitch/each other
     const awayCol = awayColor === 0xFFFFFF ? 0xeef2f7 : awayColor;
+
+    const homePlayers = home._xi || home.players || [];
+    const awayPlayers = away._xi || away.players || [];
 
     // Formation slots (x along length, z across width). Mirror for away.
     const FORM = [
@@ -180,9 +207,11 @@
     ];
     const homeMen = [], awayMen = [], homeHome = [], awayHome = [];
     for (let i = 0; i < 11; i++) {
-      const hp = makePlayer(homeColor); hp.position.set(FORM[i][0], 0, FORM[i][1]);
+      const hp = makePlayer(homeColor, homePlayers[i] || {}, 'home');
+      hp.position.set(FORM[i][0], 0, FORM[i][1]);
       homeMen.push(hp); homeHome.push([FORM[i][0], FORM[i][1]]);
-      const ap = makePlayer(awayCol);  ap.position.set(-FORM[i][0], 0, FORM[i][1]);
+      const ap = makePlayer(awayCol, awayPlayers[i] || {}, 'away');
+      ap.position.set(-FORM[i][0], 0, FORM[i][1]);
       awayMen.push(ap); awayHome.push([-FORM[i][0], FORM[i][1]]);
     }
 
@@ -194,6 +223,89 @@
     const flash = new THREE.Mesh(new THREE.PlaneGeometry(PL, PW),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
     flash.rotation.x = -Math.PI / 2; flash.position.y = 0.2; scene.add(flash);
+
+    // ── Hover / raycasting ─────────────────────────────────────────────
+    let hoveredEntry = null;
+
+    function statBar(val, max = 99) {
+      const pct = Math.round((val / max) * 100);
+      const col = val >= 87 ? '#00e6a8' : val >= 80 ? '#ffd23f' : '#8a9bc4';
+      return `<div style="display:flex;align-items:center;gap:6px">
+        <div style="flex:1;height:5px;background:#22304f;border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
+        </div>
+        <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:${col};min-width:20px;text-align:right">${val}</span>
+      </div>`;
+    }
+
+    function showCard(entry, px, py) {
+      const p = entry.playerData;
+      if (!p || !p.n) { card.style.opacity = '0'; return; }
+      const teamColor = entry.side === 'home' ? (home.primary || '#6CA8DC') : (away.primary || '#ff2d78');
+      const team = entry.side === 'home' ? home : away;
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:9px;background:${teamColor};display:grid;place-items:center;
+               font-family:'Press Start 2P',monospace;font-size:11px;color:#fff;flex-shrink:0">${p.num || '?'}</div>
+          <div>
+            <div style="font-weight:800;font-size:14px;line-height:1.2">${p.n}</div>
+            <div style="font-size:11px;color:#8a9bc4;margin-top:2px">${p.pos || ''} · ${team.flag || ''} ${team.name || ''}</div>
+          </div>
+          <div style="margin-left:auto;font-family:'Press Start 2P',monospace;font-size:18px;
+               color:${p.ovr >= 87 ? '#00e6a8' : p.ovr >= 82 ? '#ffd23f' : '#8a9bc4'}">${p.ovr || '?'}</div>
+        </div>
+        <div style="display:grid;gap:6px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#5b6c93;margin-bottom:2px">
+            <span>PAC</span><span>SHO</span><span>PAS</span><span>DRI</span><span>DEF</span><span>PHY</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">
+            ${[['PAC',p.pac],['SHO',p.sho],['PAS',p.pas],['DRI',p.dri],['DEF',p.def],['PHY',p.phy]].map(([,v]) =>
+              `<div style="text-align:center;font-family:'Press Start 2P',monospace;font-size:10px;
+                color:${(v||0)>=87?'#00e6a8':(v||0)>=80?'#ffd23f':'#8a9bc4'}">${v||'?'}</div>`
+            ).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">
+            ${[p.pac,p.sho,p.pas,p.dri,p.def,p.phy].map(v =>
+              `<div style="height:4px;background:#22304f;border-radius:2px;overflow:hidden">
+                <div style="width:${Math.round(((v||0)/99)*100)}%;height:100%;
+                  background:${(v||0)>=87?'#00e6a8':(v||0)>=80?'#ffd23f':'#8a9bc4'}"></div>
+              </div>`
+            ).join('')}
+          </div>
+        </div>
+        ${p.health != null ? `<div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#8a9bc4">
+          <span>Fitness</span>
+          <span style="color:${p.health>=90?'#00e6a8':p.health>=75?'#ffd23f':'#ff2d78'};font-weight:700">${p.health}%</span>
+        </div>` : ''}
+      `;
+      // Position card near cursor, keep within canvas bounds
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const cx = px - rect.left, cy = py - rect.top;
+      const cw = card.offsetWidth || 210, ch = card.offsetHeight || 200;
+      const lx = cx + 16 + cw > canvas.clientWidth  ? cx - cw - 10 : cx + 16;
+      const ly = cy - ch / 2 < 0 ? 10 : cy + ch / 2 > canvas.clientHeight ? canvas.clientHeight - ch - 10 : cy - ch / 2;
+      card.style.left  = lx + 'px';
+      card.style.top   = ly + 'px';
+      card.style.opacity = '1';
+    }
+
+    function hideCard() { card.style.opacity = '0'; hoveredEntry = null; }
+
+    // Highlight hovered player body
+    function setHighlight(entry, on) {
+      if (!entry?.bodyMat) return;
+      entry.bodyMat.emissive = on ? new THREE.Color(0x446644) : new THREE.Color(0x000000);
+    }
+
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x =  ((e.clientX - rect.left) / canvas.clientWidth)  * 2 - 1;
+      mouse.y = -((e.clientY - rect.top)  / canvas.clientHeight) * 2 + 1;
+      // Store raw px for card positioning
+      canvas._mouseRawX = e.clientX;
+      canvas._mouseRawY = e.clientY;
+    });
+    canvas.addEventListener('mouseleave', hideCard);
 
     // animation state
     let ballTarget = new THREE.Vector3(0, 0.7, 0);
@@ -243,10 +355,29 @@
       camera.position.x = Math.sin(t * 0.15) * 6;
       camera.lookAt(0, 0, 0);
       renderer.render(scene, camera);
+
+      // Raycast for player hover
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+      let hit = null;
+      for (const ix of intersects) {
+        const entry = meshPlayerMap.get(ix.object.uuid);
+        if (entry) { hit = entry; break; }
+      }
+      if (hit !== hoveredEntry) {
+        setHighlight(hoveredEntry, false);
+        setHighlight(hit, true);
+        hoveredEntry = hit;
+      }
+      if (hit) {
+        showCard(hit, canvas._mouseRawX || 0, canvas._mouseRawY || 0);
+      } else {
+        card.style.opacity = '0';
+      }
     }
 
     return { frame, resize, setBallTowards, wander, goalBurst,
-             dispose: () => renderer.dispose() };
+             dispose: () => { renderer.dispose(); card.remove(); } };
   }
 
   window.SIM = { buildTimeline, teamStrength, Renderer };
