@@ -523,6 +523,8 @@ const App = (() => {
     } catch (e) { alert('Simulation failed: ' + e.message); }
   }
 
-  return { go, toggle, start, focus, simFor, pickSim, makeSub, setFactor, setSpeed,
-           playSim, pauseSim, resetSim, init, simulateTournament, state };
+  const api = { go, toggle, start, focus, simFor, pickSim, makeSub, setFactor, setSpeed,
+                playSim, pauseSim, resetSim, init, simulateTournament, state };
+  window.App = api;
+  return api;
 })();
