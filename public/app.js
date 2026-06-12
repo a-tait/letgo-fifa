@@ -2,23 +2,14 @@
    app.js — PITCH '26 application controller
    Screens: onboard → dashboard → sim. Pure vanilla JS.
    ============================================================ */
-// TEAMS, FIXTURES, etc. are read lazily via window.WC (populated by api.js bootstrap)
-const WC = () => window.WC;
-const TEAMS          = new Proxy({}, { get: (_, k) => window.WC?.TEAMS?.[k] });
-const FIXTURES = new Proxy([], {
-  get: (_, k) => {
-    const f = window.WC?.FIXTURES || [];
-    if (k === 'filter') return f.filter.bind(f);
-    if (k === 'find')   return f.find.bind(f);
-    if (k === 'length') return f.length;
-    if (!isNaN(k))      return f[k];
-    return f[k];
-  }
-});
-const LIVE_EVENTS    = new Proxy({}, { get: (_, k) => window.WC?.LIVE_EVENTS?.[k] });
-const NEWS           = new Proxy({}, { get: (_, k) => window.WC?.NEWS?.[k] });
-const SENTIMENT_TREND= new Proxy({}, { get: (_, k) => window.WC?.SENTIMENT_TREND?.[k] });
-const GROUPS         = new Proxy({}, { get: (_, k) => window.WC?.GROUPS?.[k] });
+// These helpers always read from window.WC so they pick up both the data.js
+// seed and any later update from the API bootstrap.
+const TEAMS          = () => window.WC?.TEAMS          || {};
+const FIXTURES       = () => window.WC?.FIXTURES        || [];
+const LIVE_EVENTS    = () => window.WC?.LIVE_EVENTS     || {};
+const NEWS           = () => window.WC?.NEWS            || {};
+const SENTIMENT_TREND= () => window.WC?.SENTIMENT_TREND || {};
+const GROUPS         = () => window.WC?.GROUPS          || {};
 
 const App = (() => {
   const state = {
@@ -48,7 +39,7 @@ const App = (() => {
   // ---------- onboarding ----------
   function renderTeamGrid() {
     const grid = document.getElementById("teamgrid");
-    grid.innerHTML = Object.values(window.WC?.TEAMS || {}).map(t => `
+    grid.innerHTML = Object.values(TEAMS()).map(t => `
       <div class="tcard" data-code="${t.code}" onclick="App.toggle('${t.code}')">
         <div class="fl">${t.flag}</div>
         <div class="nm">${t.name}</div>
@@ -101,7 +92,7 @@ const App = (() => {
     const t = TEAMS[state.activeTeam];
     const grid = document.getElementById("dashGrid");
     const trend = SENTIMENT_TREND[t.code] || [70, 72, 74, 76, 78, 80, t.sentiment];
-    const myMatches = FIXTURES.filter(f => f.home === t.code || f.away === t.code);
+    const myMatches = FIXTURES().filter(f => f.home === t.code || f.away === t.code);
     const liveOne = myMatches.find(m => m.status === "live");
     const _groups = window.WC?.GROUPS || {};
     const grp = _groups[t.group] ? t.group : Object.keys(_groups).find(g => (_groups[g] || []).some(r => r.t === t.code));
@@ -131,7 +122,7 @@ const App = (() => {
         </div>
         <div class="card">
           <h3>📰 ${t.name} News</h3>
-          <div class="news">${(NEWS[t.code] || []).map(newsHTML).join("")}</div>
+          <div class="news">${(NEWS()[t.code] || []).map(newsHTML).join("")}</div>
         </div>
       </div>
 
@@ -161,7 +152,7 @@ const App = (() => {
           <h3>🏆 Group ${grp}</h3>
           <table class="stand">
             <tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr>
-            ${(GROUPS[grp] || []).map(r => `
+            ${(GROUPS()[grp] || []).map(r => `
               <tr class="${r.t === t.code ? "me" : ""}">
                 <td><span class="f">${TEAMS[r.t] ? TEAMS[r.t].flag : "🏳️"}</span>${TEAMS[r.t] ? TEAMS[r.t].name : r.t}</td>
                 <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gd}</td><td class="pts">${r.pts}</td>
@@ -221,16 +212,16 @@ const App = (() => {
   function setupSim() {
     // default to a relevant upcoming fixture
     if (!state.simMatch) {
-      const up = FIXTURES.find(f => f.status === "upcoming" &&
+      const up = FIXTURES().find(f => f.status === "upcoming" &&
         (state.selected.includes(f.home) || state.selected.includes(f.away)))
-        || FIXTURES.find(f => f.status === "upcoming");
+        || FIXTURES().find(f => f.status === "upcoming");
       state.simMatch = up.id;
     }
     renderMatchPick();
     loadSimMatch();
   }
   function renderMatchPick() {
-    const up = FIXTURES.filter(f => f.status !== "live");
+    const up = FIXTURES().filter(f => f.status !== "live");
     document.getElementById("matchpick").innerHTML = up.map(m => {
       const h = TEAMS[m.home], a = TEAMS[m.away];
       return `<div class="mpick ${m.id === state.simMatch ? "active" : ""}" onclick="App.pickSim('${m.id}')">
@@ -252,7 +243,7 @@ const App = (() => {
 
   function loadSimMatch() {
     stopSim();
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     const home = applyXI(TEAMS[m.home], "home");
     const away = applyXI(TEAMS[m.away], "away");
     renderControls(home, away, m);
@@ -355,7 +346,7 @@ const App = (() => {
     return Object.values(state.overrides[side]).some(s => s.num == num);
   }
   function makeSub(side, subNum) {
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     const team = TEAMS[side === "home" ? m.home : m.away];
     const sub = team.subs.find(s => s.num == subNum);
     const ov = state.overrides[side];
@@ -378,7 +369,7 @@ const App = (() => {
     refreshSim();
   }
   function refreshSim() {
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     const home = applyXI(TEAMS[m.home], "home");
     const away = applyXI(TEAMS[m.away], "away");
     // re-render only the controls' sub buttons + recompute timeline/prediction
@@ -414,7 +405,7 @@ const App = (() => {
   }
 
   function playSim() {
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     const home = applyXI(TEAMS[m.home], "home");
     const away = applyXI(TEAMS[m.away], "away");
     if (simClock >= 90) resetSim();
@@ -432,7 +423,7 @@ const App = (() => {
     running = false; simClock = 0; evIdx = 0; curHome = 0; curAway = 0;
     const b = document.getElementById("playBtn");
     if (b) { b.textContent = "▶ Kick off"; b.onclick = App.playSim; }
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     drawBoard(TEAMS[m.home], TEAMS[m.away], 0, 0, 0);
   }
 
@@ -446,10 +437,10 @@ const App = (() => {
     }
     // ball behaviour: drift toward whichever side is "pressing" (random-ish by minute)
     if (Math.floor(simClock * 2) % 3 === 0) {
-      const m = FIXTURES.find(f => f.id === state.simMatch);
+      const m = FIXTURES().find(f => f.id === state.simMatch);
       sim.setBallTowards(Math.sin(simClock) > 0 ? "home" : "away");
     }
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     drawBoard(TEAMS[m.home], TEAMS[m.away], simClock, curHome, curAway);
   }
 
@@ -465,7 +456,7 @@ const App = (() => {
   }
 
   function showGoalPop(e) {
-    const m = FIXTURES.find(f => f.id === state.simMatch);
+    const m = FIXTURES().find(f => f.id === state.simMatch);
     const team = TEAMS[e.team === "home" ? m.home : m.away];
     const pop = document.getElementById("goalpop");
     pop.innerHTML = `<b>GOAL! ${team.flag}<br><span style="font-size:18px">${e.scorer || ""} ${e.min}'</span></b>`;

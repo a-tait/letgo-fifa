@@ -1,10 +1,8 @@
 /* ============================================================
    PITCH '26 — Mock dataset
    World Cup 2026 (USA · Canada · Mexico)
-   All data here is FICTIONAL / illustrative for the mockup.
-   In production these objects are populated from live APIs
-   (API-Football, StatsBomb, NewsAPI, etc. — see RESEARCH.md).
    ============================================================ */
+(function () {
 
 const TEAMS = {
   ARG: {
@@ -320,3 +318,4 @@ const GROUPS = {
 
 // expose
 window.WC = { TEAMS, FIXTURES, LIVE_EVENTS, NEWS, SENTIMENT_TREND, GROUPS };
+})();
