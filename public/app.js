@@ -72,12 +72,12 @@ const App = (() => {
 
   function renderMyTeams() {
     document.getElementById("myteams").innerHTML =
-      state.selected.map(c => `<span class="f" title="${TEAMS[c].name}" onclick="App.focus('${c}')">${TEAMS[c].flag}</span>`).join("");
+      state.selected.map(c => `<span class="f" title="${TEAMS()[c].name}" onclick="App.focus('${c}')">${TEAMS()[c].flag}</span>`).join("");
   }
   function renderTeamTabs() {
     document.getElementById("teamtabs").innerHTML = state.selected.map(c => `
       <div class="tt ${c === state.activeTeam ? "active" : ""}" onclick="App.focus('${c}')">
-        <span class="f">${TEAMS[c].flag}</span>${TEAMS[c].name}</div>`).join("");
+        <span class="f">${TEAMS()[c].flag}</span>${TEAMS()[c].name}</div>`).join("");
   }
   async function focus(code) {
     state.activeTeam = code;
@@ -89,7 +89,7 @@ const App = (() => {
 
   // ---------- dashboard ----------
   function renderDashboard() {
-    const t = TEAMS[state.activeTeam];
+    const t = TEAMS()[state.activeTeam];
     const grid = document.getElementById("dashGrid");
     const trend = SENTIMENT_TREND[t.code] || [70, 72, 74, 76, 78, 80, t.sentiment];
     const myMatches = FIXTURES().filter(f => f.home === t.code || f.away === t.code);
@@ -154,7 +154,7 @@ const App = (() => {
             <tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr>
             ${(GROUPS()[grp] || []).map(r => `
               <tr class="${r.t === t.code ? "me" : ""}">
-                <td><span class="f">${TEAMS[r.t] ? TEAMS[r.t].flag : "🏳️"}</span>${TEAMS[r.t] ? TEAMS[r.t].name : r.t}</td>
+                <td><span class="f">${TEAMS()[r.t] ? TEAMS()[r.t].flag : "🏳️"}</span>${TEAMS()[r.t] ? TEAMS()[r.t].name : r.t}</td>
                 <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gd}</td><td class="pts">${r.pts}</td>
               </tr>`).join("")}
           </table>
@@ -167,7 +167,7 @@ const App = (() => {
   }
 
   function matchCardHTML(m) {
-    const h = TEAMS[m.home], a = TEAMS[m.away];
+    const h = TEAMS()[m.home], a = TEAMS()[m.away];
     const live = m.status === "live", final = m.status === "final";
     const showScore = live || final;
     return `<div class="match">
@@ -223,7 +223,7 @@ const App = (() => {
   function renderMatchPick() {
     const up = FIXTURES().filter(f => f.status !== "live");
     document.getElementById("matchpick").innerHTML = up.map(m => {
-      const h = TEAMS[m.home], a = TEAMS[m.away];
+      const h = TEAMS()[m.home], a = TEAMS()[m.away];
       return `<div class="mpick ${m.id === state.simMatch ? "active" : ""}" onclick="App.pickSim('${m.id}')">
         <span class="f">${h.flag}</span>${h.code} <span style="color:var(--dim)">vs</span> ${a.code}<span class="f">${a.flag}</span>
         <span style="color:var(--dim);font-size:10px">· ${m.group}</span></div>`;
@@ -244,8 +244,8 @@ const App = (() => {
   function loadSimMatch() {
     stopSim();
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    const home = applyXI(TEAMS[m.home], "home");
-    const away = applyXI(TEAMS[m.away], "away");
+    const home = applyXI(TEAMS()[m.home], "home");
+    const away = applyXI(TEAMS()[m.away], "away");
     renderControls(home, away, m);
     initRenderer(home, away);
     computeTimeline(home, away);
@@ -347,7 +347,7 @@ const App = (() => {
   }
   function makeSub(side, subNum) {
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    const team = TEAMS[side === "home" ? m.home : m.away];
+    const team = TEAMS()[side === "home" ? m.home : m.away];
     const sub = team.subs.find(s => s.num == subNum);
     const ov = state.overrides[side];
     // toggle off if already in
@@ -370,8 +370,8 @@ const App = (() => {
   }
   function refreshSim() {
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    const home = applyXI(TEAMS[m.home], "home");
-    const away = applyXI(TEAMS[m.away], "away");
+    const home = applyXI(TEAMS()[m.home], "home");
+    const away = applyXI(TEAMS()[m.away], "away");
     // re-render only the controls' sub buttons + recompute timeline/prediction
     renderControls(home, away, m);
     computeTimeline(home, away);
@@ -406,8 +406,8 @@ const App = (() => {
 
   function playSim() {
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    const home = applyXI(TEAMS[m.home], "home");
-    const away = applyXI(TEAMS[m.away], "away");
+    const home = applyXI(TEAMS()[m.home], "home");
+    const away = applyXI(TEAMS()[m.away], "away");
     if (simClock >= 90) resetSim();
     running = true;
     document.getElementById("playBtn").textContent = "⏸ Pause";
@@ -424,7 +424,7 @@ const App = (() => {
     const b = document.getElementById("playBtn");
     if (b) { b.textContent = "▶ Kick off"; b.onclick = App.playSim; }
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    drawBoard(TEAMS[m.home], TEAMS[m.away], 0, 0, 0);
+    drawBoard(TEAMS()[m.home], TEAMS()[m.away], 0, 0, 0);
   }
 
   function advanceClock(dt) {
@@ -441,7 +441,7 @@ const App = (() => {
       sim.setBallTowards(Math.sin(simClock) > 0 ? "home" : "away");
     }
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    drawBoard(TEAMS[m.home], TEAMS[m.away], simClock, curHome, curAway);
+    drawBoard(TEAMS()[m.home], TEAMS()[m.away], simClock, curHome, curAway);
   }
 
   function handleEvent(e) {
@@ -457,7 +457,7 @@ const App = (() => {
 
   function showGoalPop(e) {
     const m = FIXTURES().find(f => f.id === state.simMatch);
-    const team = TEAMS[e.team === "home" ? m.home : m.away];
+    const team = TEAMS()[e.team === "home" ? m.home : m.away];
     const pop = document.getElementById("goalpop");
     pop.innerHTML = `<b>GOAL! ${team.flag}<br><span style="font-size:18px">${e.scorer || ""} ${e.min}'</span></b>`;
     pop.classList.remove("show"); void pop.offsetWidth; pop.classList.add("show");
