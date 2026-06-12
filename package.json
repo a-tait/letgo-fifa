@@ -1,5 +1,5 @@
 {
-  "name": "pitch26",
+  "name": "diadia",
   "version": "0.1.0",
   "description": "FIFA World Cup 2026 live tracker + match simulator",
   "main": "server/index.js",

@@ -16,7 +16,7 @@ module.exports = {
   reddit: {
     clientId: process.env.REDDIT_CLIENT_ID || '',
     clientSecret: process.env.REDDIT_CLIENT_SECRET || '',
-    userAgent: process.env.REDDIT_USER_AGENT || 'pitch26/0.1',
+    userAgent: process.env.REDDIT_USER_AGENT || 'diadia/0.1',
   },
   ttl: {
     teams:     86400,  // 24h — served from snapshot

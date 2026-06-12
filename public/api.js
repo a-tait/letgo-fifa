@@ -1,5 +1,5 @@
 /* ============================================================
-   api.js — PITCH '26 frontend API client
+   api.js — DIA DIA frontend API client
    Populates window.WC from the Express backend (/api/*).
    Falls back to the pre-loaded window.WC from data.js if
    the backend is unreachable.

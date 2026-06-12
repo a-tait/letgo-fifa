@@ -35,5 +35,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(config.port, () => {
-  console.log(`⚽ PITCH '26 running at http://localhost:${config.port}`);
+  console.log(`⚽ DIA DIA running at http://localhost:${config.port}`);
 });
