@@ -289,6 +289,77 @@ const App = (() => {
   }
   const clampPoss = v => Math.max(28, Math.min(72, v));
 
+  function simTab(tab) {
+    document.getElementById("simtab-match").style.display  = tab === "match"  ? "" : "none";
+    document.getElementById("simtab-roster").style.display = tab === "roster" ? "" : "none";
+    document.getElementById("tab-match").style.cssText  = `flex:1;padding:10px;border:none;background:none;cursor:pointer;font-family:var(--pixel);font-size:9px;color:${tab==="match"?"var(--accent)":"var(--dim)"};border-bottom:2px solid ${tab==="match"?"var(--accent)":"transparent"}`;
+    document.getElementById("tab-roster").style.cssText = `flex:1;padding:10px;border:none;background:none;cursor:pointer;font-family:var(--pixel);font-size:9px;color:${tab==="roster"?"var(--accent)":"var(--dim)"};border-bottom:2px solid ${tab==="roster"?"var(--accent)":"transparent"}`;
+  }
+
+  function attrColor(v) {
+    return v >= 87 ? "var(--accent)" : v >= 80 ? "var(--gold)" : "var(--muted)";
+  }
+
+  function playerRowHTML(p, teamColor) {
+    const attrs = [p.pac, p.sho, p.pas, p.dri, p.def, p.phy];
+    return `
+      <div style="display:grid;grid-template-columns:22px 1fr 32px;align-items:center;gap:8px;
+                  padding:8px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--line);margin-bottom:5px">
+        <div style="width:22px;height:22px;border-radius:6px;background:${teamColor};
+             display:grid;place-items:center;font-family:var(--pixel);font-size:7px;color:#fff;flex-shrink:0">${p.num || "?"}</div>
+        <div>
+          <div style="font-weight:700;font-size:12px;display:flex;align-items:center;gap:6px">
+            ${p.n}
+            <span style="font-size:8px;font-family:var(--pixel);color:var(--muted);background:var(--panel2);
+                         padding:2px 5px;border-radius:4px">${p.pos}</span>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:5px">
+            ${attrs.map(v => `
+              <div style="flex:1">
+                <div style="height:3px;background:var(--line);border-radius:2px;overflow:hidden">
+                  <div style="width:${Math.round(((v||0)/99)*100)}%;height:100%;background:${attrColor(v||0)};border-radius:2px"></div>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>
+        <div style="font-family:var(--pixel);font-size:12px;text-align:right;color:${attrColor(p.ovr||0)}">${p.ovr}</div>
+      </div>`;
+  }
+
+  function rosterHTML(home, away) {
+    const hxi  = (home._xi || home.players || []).slice(0, 11);
+    const axi  = (away._xi || away.players || []).slice(0, 11);
+    const hsub = home.subs || [];
+    const asub = away.subs || [];
+    const hCol = home.primary || "#6CA8DC";
+    const aCol = away.primary || "#ff2d78";
+
+    return `
+      <div style="overflow-y:auto;max-height:calc(100vh - 220px)">
+        <!-- Home team -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:22px">${home.flag}</span>
+          <span style="font-family:var(--pixel);font-size:10px;color:var(--accent)">${home.name}</span>
+          <span style="font-size:9px;font-family:var(--pixel);color:var(--dim);margin-left:auto">OVR ${home.rating}</span>
+        </div>
+        ${hxi.map(p => playerRowHTML(p, hCol)).join("")}
+        ${hsub.length ? `
+          <div style="font-size:9px;font-family:var(--pixel);color:var(--dim);margin:10px 0 6px">SUBS</div>
+          ${hsub.map(p => playerRowHTML(p, hCol + "99")).join("")}` : ""}
+
+        <!-- Away team -->
+        <div style="display:flex;align-items:center;gap:8px;margin:16px 0 10px">
+          <span style="font-size:22px">${away.flag}</span>
+          <span style="font-family:var(--pixel);font-size:10px;color:var(--accent2)">${away.name}</span>
+          <span style="font-size:9px;font-family:var(--pixel);color:var(--dim);margin-left:auto">OVR ${away.rating}</span>
+        </div>
+        ${axi.map(p => playerRowHTML(p, aCol)).join("")}
+        ${asub.length ? `
+          <div style="font-size:9px;font-family:var(--pixel);color:var(--dim);margin:10px 0 6px">SUBS</div>
+          ${asub.map(p => playerRowHTML(p, aCol + "99")).join("")}` : ""}
+      </div>`;
+  }
+
   function renderControls(home, away, m) {
     const subRows = (team, side) => {
       const ov = state.overrides[side];
@@ -306,40 +377,57 @@ const App = (() => {
           oninput="App.setFactor('${key}',this.value)"></div>`;
     };
     document.getElementById("simcontrol").innerHTML = `
-      <h3><span class="dot" style="background:var(--accent2);box-shadow:0 0 10px var(--accent2)"></span>Win Probability</h3>
-      <div class="predbar" id="predbar"><i class="ph"></i><i class="pd"></i><i class="pa"></i></div>
-      <div class="simmeta" id="xgmeta"></div>
-
-      <h3 style="margin-top:6px">⚙️ Match Factors</h3>
-      <div class="fgroup">
-        <div style="font-size:11px;color:var(--accent);font-family:var(--pixel)">${home.flag} ${home.code}</div>
-        ${fctl("Team fitness", "healthHome", "home")}
-        ${fctl("Skill / form boost", "skillHome", "home")}
-        <div style="font-size:11px;color:var(--accent2);font-family:var(--pixel);margin-top:4px">${away.flag} ${away.code}</div>
-        ${fctl("Team fitness", "healthAway", "away")}
-        ${fctl("Skill / form boost", "skillAway", "away")}
+      <!-- Tab bar -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:14px">
+        <button id="tab-match"  onclick="App.simTab('match')"
+          style="flex:1;padding:10px;border:none;background:none;cursor:pointer;
+                 font-family:var(--pixel);font-size:9px;color:var(--accent);
+                 border-bottom:2px solid var(--accent)">MATCH</button>
+        <button id="tab-roster" onclick="App.simTab('roster')"
+          style="flex:1;padding:10px;border:none;background:none;cursor:pointer;
+                 font-family:var(--pixel);font-size:9px;color:var(--dim);
+                 border-bottom:2px solid transparent">ROSTER</button>
       </div>
 
-      <h3 style="margin-top:6px">🔁 Substitutions — ${home.code}</h3>
-      <div class="subctl">${subRows(home, "home")}</div>
-      <h3>🔁 Substitutions — ${away.code}</h3>
-      <div class="subctl">${subRows(away, "away")}</div>
+      <!-- MATCH tab -->
+      <div id="simtab-match">
+        <h3><span class="dot" style="background:var(--accent2);box-shadow:0 0 10px var(--accent2)"></span>Win Probability</h3>
+        <div class="predbar" id="predbar"><i class="ph"></i><i class="pd"></i><i class="pa"></i></div>
+        <div class="simmeta" id="xgmeta"></div>
 
-      <h3 style="margin-top:6px">⏱️ Speed</h3>
-      <div class="speedsel">
-        <button data-s="4" onclick="App.setSpeed(4)">1×</button>
-        <button data-s="8" class="on" onclick="App.setSpeed(8)">2×</button>
-        <button data-s="20" onclick="App.setSpeed(20)">5×</button>
-        <button data-s="45" onclick="App.setSpeed(45)">Instant</button>
+        <h3 style="margin-top:6px">⚙️ Match Factors</h3>
+        <div class="fgroup">
+          <div style="font-size:11px;color:var(--accent);font-family:var(--pixel)">${home.flag} ${home.code}</div>
+          ${fctl("Team fitness", "healthHome", "home")}
+          ${fctl("Skill / form boost", "skillHome", "home")}
+          <div style="font-size:11px;color:var(--accent2);font-family:var(--pixel);margin-top:4px">${away.flag} ${away.code}</div>
+          ${fctl("Team fitness", "healthAway", "away")}
+          ${fctl("Skill / form boost", "skillAway", "away")}
+        </div>
+
+        <h3 style="margin-top:6px">🔁 Substitutions — ${home.code}</h3>
+        <div class="subctl">${subRows(home, "home")}</div>
+        <h3>🔁 Substitutions — ${away.code}</h3>
+        <div class="subctl">${subRows(away, "away")}</div>
+
+        <h3 style="margin-top:6px">⏱️ Speed</h3>
+        <div class="speedsel">
+          <button data-s="4" onclick="App.setSpeed(4)">1×</button>
+          <button data-s="8" class="on" onclick="App.setSpeed(8)">2×</button>
+          <button data-s="20" onclick="App.setSpeed(20)">5×</button>
+          <button data-s="45" onclick="App.setSpeed(45)">Instant</button>
+        </div>
+        <div class="simbtns">
+          <button class="btn" id="playBtn" onclick="App.playSim()">▶ Kick off</button>
+          <button class="btn ghost" onclick="App.resetSim()">↺ Reset</button>
+        </div>
       </div>
-      <div class="simbtns">
-        <button class="btn" id="playBtn" onclick="App.playSim()">▶ Kick off</button>
-        <button class="btn ghost" onclick="App.resetSim()">↺ Reset</button>
+
+      <!-- ROSTER tab -->
+      <div id="simtab-roster" style="display:none">
+        ${rosterHTML(home, away)}
       </div>
-      <div style="font-size:11px;color:var(--dim);line-height:1.5">
-        Engine derives attack/defence strength from the selected XI's attributes, then samples
-        minute-by-minute chances. Change a factor or sub to re-roll the projection.
-      </div>`;
+    `;
     updateSpeedUI();
   }
   function isOn(side, num) {
@@ -519,7 +607,7 @@ const App = (() => {
   }
 
   const api = { go, toggle, start, focus, simFor, pickSim, makeSub, setFactor, setSpeed,
-                playSim, pauseSim, resetSim, init, simulateTournament, state };
+                playSim, pauseSim, resetSim, init, simulateTournament, simTab, state };
   window.App = api;
   return api;
 })();
