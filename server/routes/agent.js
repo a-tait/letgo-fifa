@@ -1,8 +1,32 @@
 const router     = require('express').Router();
 const Anthropic  = require('@anthropic-ai/sdk');
+const { execSync } = require('child_process');
 const { TEAMS, FIXTURES, GROUPS, LIVE_EVENTS } = require('../services/syntheticData');
 
-const client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Get a fresh API key — supports three modes:
+//   1. apiKeyHelper in ~/.claude/settings.json (e.g. devbar)
+//   2. ANTHROPIC_API_KEY in .env
+//   3. Falls back to undefined (will 503)
+function getApiKey() {
+  try {
+    const settings = require('fs').existsSync(`${process.env.HOME}/.claude/settings.json`)
+      ? JSON.parse(require('fs').readFileSync(`${process.env.HOME}/.claude/settings.json`, 'utf8'))
+      : {};
+    if (settings.apiKeyHelper) {
+      return execSync(settings.apiKeyHelper, { timeout: 5000 }).toString().trim();
+    }
+  } catch {}
+  return process.env.ANTHROPIC_API_KEY || null;
+}
+
+function getClient() {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+  return new Anthropic.default({
+    apiKey,
+    ...(process.env.ANTHROPIC_BASE_URL ? { baseURL: process.env.ANTHROPIC_BASE_URL } : {}),
+  });
+}
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 const TOOLS = [
@@ -199,8 +223,9 @@ function executeTool(name, input) {
 
 // ─── POST /api/agent ─────────────────────────────────────────────────────────
 router.post('/', async (req, res, next) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set in .env' });
+  const client = getClient();
+  if (!client) {
+    return res.status(503).json({ error: 'No API key available. Set ANTHROPIC_API_KEY in .env or configure apiKeyHelper in ~/.claude/settings.json' });
   }
 
   try {
