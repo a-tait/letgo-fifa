@@ -507,6 +507,10 @@ const App = (() => {
 
   function init() { renderTeamGrid(); }
 
+  // Render immediately with whatever data is available (data.js fallback),
+  // so the grid is never empty even before the async bootstrap finishes.
+  renderTeamGrid();
+
   async function simulateTournament() {
     try {
       const result = await window.API.post('/api/bracket/sim', {});
