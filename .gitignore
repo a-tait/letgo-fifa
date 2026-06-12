@@ -1,0 +1,6 @@
+node_modules/
+.env
+data/pitch26.db*
+data/cache/
+*.log
+.DS_Store
