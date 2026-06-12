@@ -48,7 +48,7 @@ const App = (() => {
   // ---------- onboarding ----------
   function renderTeamGrid() {
     const grid = document.getElementById("teamgrid");
-    grid.innerHTML = Object.values(TEAMS).map(t => `
+    grid.innerHTML = Object.values(window.WC?.TEAMS || {}).map(t => `
       <div class="tcard" data-code="${t.code}" onclick="App.toggle('${t.code}')">
         <div class="fl">${t.flag}</div>
         <div class="nm">${t.name}</div>
@@ -103,7 +103,8 @@ const App = (() => {
     const trend = SENTIMENT_TREND[t.code] || [70, 72, 74, 76, 78, 80, t.sentiment];
     const myMatches = FIXTURES.filter(f => f.home === t.code || f.away === t.code);
     const liveOne = myMatches.find(m => m.status === "live");
-    const grp = GROUPS[t.group] ? t.group : Object.keys(GROUPS).find(g => GROUPS[g].some(r => r.t === t.code));
+    const _groups = window.WC?.GROUPS || {};
+    const grp = _groups[t.group] ? t.group : Object.keys(_groups).find(g => (_groups[g] || []).some(r => r.t === t.code));
 
     grid.innerHTML = `
       <!-- HERO BANNER -->
