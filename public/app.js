@@ -1,5 +1,5 @@
 /* ============================================================
-   app.js — DIA DIA application controller
+   app.js — DAI DAI application controller
    Screens: onboard → dashboard → sim. Pure vanilla JS.
    ============================================================ */
 // These helpers always read from window.WC so they pick up both the data.js
